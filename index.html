@@ -1,0 +1,218 @@
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en"><head>
+	<meta http-equiv="Content-type" content="text/html; charset=utf-8">
+	<title>Ruleta De La Suerte</title>
+  <meta name="viewport" content="width=device-width, initial-scale=0.95">
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="RuletaDeLaSuerte">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <link rel="stylesheet" href="style/add2home.css">
+	<style type="text/css" media="screen">
+    body {
+      padding: 0;
+      margin: 0;
+    }
+	  .hudcontainer {display: none;}
+    #content {
+      width: 800px;
+      height: 800px;
+      margin: 0;
+      padding: 0;
+      float: left;
+    }
+
+    #services {
+      color: white;
+      font-size: 30px;
+      line-height: 38px;      
+      background-color: black;
+      height: 100%;
+      padding: 8em 0em 3em 8em;
+    }
+
+    #services a {
+      color: #b0b0b0;
+      text-decoration: none;
+    }
+
+    body.entree1 #services a.entree1,
+    body.entree2 #services a.entree2,
+    body.entree3 #services a.entree3,
+    body.plat #services a.plat,
+    body.fromages #services a.fromages,
+    body.dessert #services a.dessert {
+      color: white;
+    }
+
+  </style>
+  
+	<script src="js/mootools-1.2.1-core-nc.js" type="text/javascript" charset="utf-8"></script>
+	<script src="js/raphael-nc.js" type="text/javascript" charset="utf-8"></script>	
+	<script src="js/thread.js" type="text/javascript" charset="utf-8"></script>	
+	
+	<script type="text/javascript" src="js/add2home.js" charset="utf-8"></script>
+	<script type="text/javascript" charset="utf-8">
+
+function getQueryVariable(variable) {
+    var query = window.location.search.substring(1);
+    var vars = query.split('&');
+    for (var i = 0; i < vars.length; i++) {
+        var pair = vars[i].split('=');
+        if (decodeURIComponent(pair[0]) == variable) {
+            return decodeURIComponent(pair[1]);
+        }
+    }
+    console.log('Query variable %s not found', variable);
+}
+
+		var ColorWheel = new Class({
+			Extends: Thread,
+			
+			initialize: function(options) {
+				this.parent(options);
+				this.raphael = Raphael('wheel', 800, 800);
+				this.wheel = this.raphael.image('media/' + this.options.wheelsrc + "?v1", 0,0,800, 800);
+        this.needle = this.raphael.image('media/needle.svg',735,400,64,45);
+        this.needleWhite = this.raphael.image('media/needle-white.svg',480,400,32,22);
+				this.lblSpeed = $('speed');
+				this.lblRPM = $('rpm');
+				this.lblFPS = $('fps');
+        this.angle = 0 ;        
+        this.stopfrom = this.options.stopfrom;
+        this.stopto = this.options.stopto;
+				
+				$('wheel').addEvent('click', function(event) {
+				if (this.targetSpeed == 0 ) {    
+					this.setSpeed($('targetSpeed').get('value'));
+					this.setAcceleration($('acceleration').get('value'));            
+				} else {
+					this.setSpeed(0);
+					this.setAcceleration($('acceleration').get('value'));            
+				}
+				}.bind(this));
+				
+				
+				
+				$('btnSetSpeed').addEvent('click', function(event) {
+          if (this.targetSpeed == 0 ) {
+            this.start();            
+          } else {
+					  this.setSpeed($('targetSpeed').get('value'));
+    				this.setAcceleration($('acceleration').get('value'));            
+          }
+				}.bind(this));
+			},
+
+			execute: function() {
+				var now = new Date().getTime();
+				this.fps = (1000 / (now - this.lastTime)).toFixed(2);
+				this.lastTime = now;
+
+				if (this.targetSpeed == 0) { // stop
+					this.angularSpeed *= 0.99;
+					if (this.angularSpeed < 0.01) this.stop();
+				}
+
+				else if (this.angularSpeed < this.targetSpeed) { // accelerate
+					this.angularSpeed = Math.min(this.angularSpeed + this.acceleration, this.targetSpeed);
+				}
+
+				else if (this.angularSpeed > this.targetSpeed) { // brake
+					this.angularSpeed = Math.max(this.angularSpeed - this.acceleration, this.targetSpeed);
+				}
+
+				var currentRPM = 60*(this.angularSpeed/360)*(1000/this.options.interval);
+				this.lblSpeed.set('text', 'Angular speed: ' + this.angularSpeed.toFixed(2) + ' deg per frame');
+				this.lblRPM.set('text', 'Current speed: ' + currentRPM.toFixed(2) + ' rpm');
+				this.lblFPS.set('text', 'Frames: ' + this.fps + ' fps');
+
+        if (this.targetSpeed == 0 && currentRPM <= 20 && this.angle > this.stopfrom && this.angle < this.stopto) {
+          /* just stop */
+        } else {
+          this.angle = ((this.angle + this.angularSpeed) % 360);
+  				this.wheel.rotate(this.angularSpeed);          
+        }
+
+
+			},
+
+			start: function() {
+				this.angularSpeed = 0;
+				this.setSpeed($('targetSpeed').get('value'));
+				this.setAcceleration($('acceleration').get('value'));
+				this.lastTime = new Date().getTime();
+				this.parent();
+			},
+
+			setSpeed: function(rpm) {
+				this.targetSpeed = (rpm/60)*(360)*(this.options.interval/1000);
+				console.log('setSpeed (rpm,anglespeed): ', rpm, this.targetSpeed);
+			},
+
+      setAcceleration: function(ratio) {
+        this.acceleration = ratio * 1.0;
+				console.log('setAcceleration (ratio): ', ratio);
+      }
+		});
+
+		window.addEvent('domready', function() {
+
+      if (getQueryVariable('wheelsrc')) {
+
+			  new ColorWheel({interval:1000/30, stopfrom:getQueryVariable('from'), stopto:getQueryVariable('to'), wheelsrc:getQueryVariable('wheelsrc')}).start();
+
+        document.body.addClass(getQueryVariable('section'));
+
+
+        var a=document.getElementsByTagName("a");
+        for(var i=0;i<a.length;i++) {
+            if(!a[i].onclick && a[i].getAttribute("target") != "_blank") {
+                a[i].onclick=function() {
+                        window.location=this.getAttribute("href");
+                        return false; 
+                }
+            }
+        }
+        
+      } else {
+        window.location = "?from=90&to=120&wheelsrc=wheel1.svg&section=entree1";
+      }
+
+ 		});
+	</script></head>
+<body>
+	<div id="wrapper">		
+		<div id="content">
+			<div id="wheel"></div>
+			<div id="needle"></div>      
+			<div id="needle-white"></div>      
+		</div>
+    <div id="services">
+      <a class="entree1" href="?from=90&to=120&wheelsrc=wheel1.svg&section=entree1">Entrée 1</a><br/>
+      <a class="entree2" href="?from=90&to=120&wheelsrc=wheel2.svg&section=entree2">Entrée 2</a><br/>
+      <a class="entree3" href="?from=0&to=30&wheelsrc=wheel1.svg&section=entree3">Entrée 3</a><br/>
+      <a class="plat" href="?from=0&to=30&wheelsrc=wheel2.svg&section=plat">Plat principal</a><br/>
+      <a class="fromages" href="?from=270&to=300&wheelsrc=wheel1.svg&section=fromages">Fromages</a><br/>
+      <a class="dessert" href="?from=270&to=300&wheelsrc=wheel2.svg&section=dessert">Dessert</a><br/>
+
+    </div>
+		<div class="hudcontainer">
+			<div id="optionspanel" class="hud hud-visible">
+				<div class="closehud" id="closeoptionsbtn"></div>
+				<h3>Options</h3>
+				<br>
+        <label for="targetSpeed">Target Speed (rpm):</label>
+        <input type="text" value="200" id="targetSpeed" size="5">
+        <input type="text" value="7.6" id="acceleration" size="5">
+        <input type="submit" value="Set speed" id="btnSetSpeed">
+        <br><br>
+        <p id="speed">Angular speed: 0.01 deg per frame</p>
+        <p id="rpm">Current speed: 0.05 rpm</p>
+        <p id="fps">Frames: 30.30 fps</p>			
+      </div>
+		</div>
+	</div>
+
+</body></html>
+
+
